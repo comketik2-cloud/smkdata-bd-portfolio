@@ -69,6 +69,11 @@ async function ensureDbInitialized() {
       students: [],
       ukkProjects: [],
       documentations: [],
+      users: [
+        { id: "usr-admin", email: "admin@daruttaqwa.sch.id", password: "admin123", name: "Administrator BD", role: "admin" },
+        { id: "usr-guru", email: "guru@daruttaqwa.sch.id", password: "guru123", name: "Pak Ahmad, S.Pd.", role: "guru" },
+        { id: "usr-siswa", email: "siswa@daruttaqwa.sch.id", password: "siswa123", name: "Dwi Prasetyo", role: "siswa" }
+      ],
       profileJurusan: {
         vision: "Menjadi program keahlian Bisnis Digital nomor satu yang menghasilkan asisten pemasar digital religius, kreatif, mandiri, dan handal dengan standar industri nasional.",
         mission: [
@@ -183,6 +188,88 @@ export function setupSupabaseFallback() {
         if (apiPath === "supabase-status") {
           return new Response(JSON.stringify({ connected: true, host: "db.wpoowpdcjahoxgffemhp.supabase.co" }), {
             status: 200,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+
+        // Auth Login & Register Endpoints
+        if (apiPath === "auth/login") {
+          const body = JSON.parse(init?.body as string);
+          const { email, password, role } = body || {};
+          if (!email || !password) {
+            return new Response(JSON.stringify({ error: "Email/NIP/NIS and password are required" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" }
+            });
+          }
+          if (!localDb.users) {
+            localDb.users = [
+              { id: "usr-admin", email: "admin@daruttaqwa.sch.id", password: "admin123", name: "Administrator BD", role: "admin" },
+              { id: "usr-guru", email: "guru@daruttaqwa.sch.id", password: "guru123", name: "Pak Ahmad, S.Pd.", role: "guru" },
+              { id: "usr-siswa", email: "siswa@daruttaqwa.sch.id", password: "siswa123", name: "Dwi Prasetyo", role: "siswa" }
+            ];
+            saveDbToCloud();
+          }
+          const found = localDb.users.find(
+            (u: any) => 
+              (u.email === email || u.id === email) && 
+              u.password === password && 
+              (!role || u.role === role)
+          );
+          if (found) {
+            return new Response(JSON.stringify({
+              user: {
+                id: found.id,
+                email: found.email,
+                name: found.name,
+                role: found.role
+              }
+            }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" }
+            });
+          }
+          return new Response(JSON.stringify({ error: "Akun tidak ditemukan atau kata sandi salah." }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+
+        if (apiPath === "auth/register") {
+          const body = JSON.parse(init?.body as string);
+          const { email, password, name, role } = body || {};
+          if (!email || !password || !name || !role) {
+            return new Response(JSON.stringify({ error: "Semua parameter wajib diisi." }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" }
+            });
+          }
+          if (!localDb.users) localDb.users = [];
+          const exists = localDb.users.some((u: any) => u.email === email);
+          if (exists) {
+            return new Response(JSON.stringify({ error: "Email ini telah terdaftar." }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" }
+            });
+          }
+          const newUser = {
+            id: `usr-${Math.random().toString(36).substring(2, 11)}`,
+            email,
+            password,
+            name,
+            role
+          };
+          localDb.users.push(newUser);
+          saveDbToCloud();
+          return new Response(JSON.stringify({
+            user: {
+              id: newUser.id,
+              email: newUser.email,
+              name: newUser.name,
+              role: newUser.role
+            }
+          }), {
+            status: 201,
             headers: { "Content-Type": "application/json" }
           });
         }

@@ -87,6 +87,30 @@ async function initSupabaseDb() {
     `;
     console.log("Supabase: table 'app_state' verified or created.");
 
+    // Create the dedicated app_users table in Supabase for user storage
+    await sql`
+      CREATE TABLE IF NOT EXISTS app_users (
+        id text PRIMARY KEY,
+        email text UNIQUE,
+        password text,
+        name text,
+        role text,
+        created_at timestamp with time zone DEFAULT current_timestamp
+      )
+    `;
+    console.log("Supabase: table 'app_users' verified or created.");
+
+    // Seed default roles if not yet existed
+    await sql`
+      INSERT INTO app_users (id, email, password, name, role)
+      VALUES 
+        ('usr-admin', 'admin@daruttaqwa.sch.id', 'admin123', 'Administrator BD', 'admin'),
+        ('usr-guru', 'guru@daruttaqwa.sch.id', 'guru123', 'Pak Ahmad, S.Pd.', 'guru'),
+        ('usr-siswa', 'siswa@daruttaqwa.sch.id', 'siswa123', 'Dwi Prasetyo', 'siswa')
+      ON CONFLICT (email) DO NOTHING
+    `;
+    console.log("Supabase: Default roles seeded in app_users.");
+
     const rows = await sql`
       SELECT data FROM app_state WHERE key = 'master_state'
     `;
@@ -249,6 +273,15 @@ if (!db.documentations || db.documentations.length === 0) {
   saveData();
 }
 
+if (!db.users) {
+  db.users = [
+    { id: "usr-admin", email: "admin@daruttaqwa.sch.id", password: "admin123", name: "Administrator BD", role: "admin" },
+    { id: "usr-guru", email: "guru@daruttaqwa.sch.id", password: "guru123", name: "Pak Ahmad, S.Pd.", role: "guru" },
+    { id: "usr-siswa", email: "siswa@daruttaqwa.sch.id", password: "siswa123", name: "Dwi Prasetyo", role: "siswa" }
+  ];
+  saveData();
+}
+
 function saveData() {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
   if (sql) {
@@ -272,6 +305,94 @@ app.use("/uploads", express.static(UPLOADS_DIR));
 // API Routes
 app.get("/api/supabase-status", (req, res) => {
   res.json(supabaseStatus);
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  const { email, password, role } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email/NIP/NIS dan kata sandi wajib diisi" });
+  }
+
+  // 1. Try Supabase direct queries
+  if (sql) {
+    try {
+      const rows = await sql`
+        SELECT * FROM app_users 
+        WHERE (email = ${email} OR id = ${email}) AND password = ${password}
+      `;
+      if (rows.length > 0) {
+        const found = rows[0];
+        if (!role || found.role === role) {
+          return res.json({
+            user: {
+              id: found.id,
+              email: found.email,
+              name: found.name,
+              role: found.role
+            }
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Supabase direct auth check failed, using local fallback list on server side:", err);
+    }
+  }
+
+  // 2. Local fallback / memory array check
+  const foundLocal = db.users?.find(
+    (u: any) => 
+      (u.email === email || u.id === email) && 
+      u.password === password && 
+      (!role || u.role === role)
+  );
+
+  if (foundLocal) {
+    return res.json({
+      user: {
+        id: foundLocal.id,
+        email: foundLocal.email,
+        name: foundLocal.name,
+        role: foundLocal.role
+      }
+    });
+  }
+
+  return res.status(401).json({ error: "Autentikasi gagal. Akun tidak ditemukan atau kata sandi Anda salah." });
+});
+
+app.post("/api/auth/register", async (req, res) => {
+  const { email, password, name, role } = req.body;
+  if (!email || !password || !name || !role) {
+    return res.status(400).json({ error: "Semua parameter pendaftaran wajib diisi." });
+  }
+
+  const id = `usr-${Math.random().toString(36).substring(2, 11)}`;
+  
+  // Try inserting directly in SQL table
+  if (sql) {
+    try {
+      await sql`
+        INSERT INTO app_users (id, email, password, name, role)
+        VALUES (${id}, ${email}, ${password}, ${name}, ${role})
+      `;
+    } catch (err) {
+      console.error("Supabase direct user register failed, caching in local db.json state:", err);
+    }
+  }
+
+  if (!db.users) db.users = [];
+  const exists = db.users.some((u: any) => u.email === email);
+  if (exists) {
+    return res.status(400).json({ error: "Email ini sudah terdaftar sebelumnya." });
+  }
+
+  const newUser = { id, email, password, name, role };
+  db.users.push(newUser);
+  saveData();
+
+  return res.status(201).json({
+    user: { id, email, name, role }
+  });
 });
 
 app.get("/api/materials", (req, res) => {

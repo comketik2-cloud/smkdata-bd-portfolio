@@ -11,16 +11,32 @@ export default function Login({ onLogin }: LoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("admin");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Dummy login for prototype
-    onLogin({
-      id: Math.random().toString(),
-      name: email.split('@')[0] || "User",
-      email: email || "admin@daruttaqwa.sch.id",
-      role: role
-    });
+    setError(null);
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, role })
+      });
+      const data = await res.json();
+      if (res.ok && data.user) {
+        onLogin(data.user);
+      } else {
+        setError(data.error || "Autentikasi gagal. Silakan periksa kembali email dan kata sandi Anda.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Terjadi Hambatan Jaringan. Silakan coba kembali beberapa saat lagi.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -95,12 +111,30 @@ export default function Login({ onLogin }: LoginProps) {
             </div>
           </div>
 
+          {error && (
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-100/60 text-rose-600 text-[10px] font-black uppercase tracking-wider leading-relaxed text-center animate-bounce">
+              ⚠️ {error}
+            </div>
+          )}
+
           <button 
             type="submit"
-            className="w-full brand-gradient text-white font-black py-5 rounded-2xl shadow-xl shadow-blue-100 transition-all flex items-center justify-center gap-3 mt-6 group uppercase tracking-[0.2em] text-xs hover:scale-105 active:scale-95"
+            disabled={isLoading}
+            className={`w-full brand-gradient text-white font-black py-5 rounded-2xl shadow-xl shadow-blue-100 transition-all flex items-center justify-center gap-3 mt-6 group uppercase tracking-[0.2em] text-xs hover:scale-105 active:scale-95 ${
+              isLoading ? "opacity-50 cursor-not-allowed scale-95" : ""
+            }`}
           >
-            <LogIn size={20} className="group-hover:translate-x-1 transition-transform" />
-            Autentikasi Sekarang
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <span className="h-4.5 w-4.5 border-3 border-white border-t-transparent rounded-full animate-spin"></span>
+                Memproses...
+              </span>
+            ) : (
+              <>
+                <LogIn size={20} className="group-hover:translate-x-1 transition-transform" />
+                Autentikasi Sekarang
+              </>
+            )}
           </button>
         </form>
 
