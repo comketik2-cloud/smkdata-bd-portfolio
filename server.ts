@@ -100,6 +100,19 @@ async function initSupabaseDb() {
     `;
     console.log("Supabase: table 'app_users' verified or created.");
 
+    // Create the dedicated users table in Supabase for user storage
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id text PRIMARY KEY,
+        email text UNIQUE,
+        password text,
+        name text,
+        role text,
+        created_at timestamp with time zone DEFAULT current_timestamp
+      )
+    `;
+    console.log("Supabase: table 'users' verified or created.");
+
     // Seed default roles if not yet existed
     await sql`
       INSERT INTO app_users (id, email, password, name, role)
@@ -110,6 +123,16 @@ async function initSupabaseDb() {
       ON CONFLICT (email) DO NOTHING
     `;
     console.log("Supabase: Default roles seeded in app_users.");
+
+    await sql`
+      INSERT INTO users (id, email, password, name, role)
+      VALUES 
+        ('usr-admin', 'admin@daruttaqwa.sch.id', 'admin123', 'Administrator BD', 'admin'),
+        ('usr-guru', 'guru@daruttaqwa.sch.id', 'guru123', 'Pak Ahmad, S.Pd.', 'guru'),
+        ('usr-siswa', 'siswa@daruttaqwa.sch.id', 'siswa123', 'Dwi Prasetyo', 'siswa')
+      ON CONFLICT (email) DO NOTHING
+    `;
+    console.log("Supabase: Default roles seeded in users.");
 
     const rows = await sql`
       SELECT data FROM app_state WHERE key = 'master_state'
@@ -316,10 +339,20 @@ app.post("/api/auth/login", async (req, res) => {
   // 1. Try Supabase direct queries
   if (sql) {
     try {
-      const rows = await sql`
-        SELECT * FROM app_users 
+      // Try 'users' table first
+      let rows = await sql`
+        SELECT * FROM users 
         WHERE (email = ${email} OR id = ${email}) AND password = ${password}
       `;
+      
+      // Fallback to 'app_users' if empty or failed
+      if (rows.length === 0) {
+        rows = await sql`
+          SELECT * FROM app_users 
+          WHERE (email = ${email} OR id = ${email}) AND password = ${password}
+        `;
+      }
+
       if (rows.length > 0) {
         const found = rows[0];
         if (!role || found.role === role) {
@@ -376,7 +409,15 @@ app.post("/api/auth/register", async (req, res) => {
         VALUES (${id}, ${email}, ${password}, ${name}, ${role})
       `;
     } catch (err) {
-      console.error("Supabase direct user register failed, caching in local db.json state:", err);
+      console.error("Supabase direct user register to app_users failed:", err);
+    }
+    try {
+      await sql`
+        INSERT INTO users (id, email, password, name, role)
+        VALUES (${id}, ${email}, ${password}, ${name}, ${role})
+      `;
+    } catch (err) {
+      console.error("Supabase direct user register to users failed:", err);
     }
   }
 
