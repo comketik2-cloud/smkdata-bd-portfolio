@@ -12,6 +12,13 @@ const TABLE_URL = "https://wpoowpdcjahoxgffemhp.supabase.co/rest/v1/app_state";
 let localDb: any = null;
 let initPromise: Promise<any> | null = null;
 
+// File-level bound original fetch reference to bypass interceptor and avoid "Illegal invocation" errors!
+const originalFetch = (
+  typeof window !== "undefined" && window.fetch ? window.fetch : 
+  typeof globalThis !== "undefined" && globalThis.fetch ? globalThis.fetch : 
+  fetch
+).bind(typeof window !== "undefined" ? window : globalThis);
+
 // Initialize state from Supabase
 async function ensureDbInitialized() {
   if (localDb) return localDb;
@@ -19,7 +26,7 @@ async function ensureDbInitialized() {
 
   initPromise = (async () => {
     try {
-      const res = await fetch(REST_URL, {
+      const res = await originalFetch(REST_URL, {
         headers: {
           "apikey": ANON_KEY,
           "Authorization": `Bearer ${ANON_KEY}`
@@ -97,7 +104,7 @@ async function ensureDbInitialized() {
 
     // Save default mock back to Supabase to establish the first record
     try {
-      await fetch(TABLE_URL, {
+      await originalFetch(TABLE_URL, {
         method: "POST",
         headers: {
           "apikey": ANON_KEY,
@@ -125,7 +132,7 @@ async function ensureDbInitialized() {
 async function saveDbToCloud() {
   if (!localDb) return;
   try {
-    await fetch(`${TABLE_URL}?key=eq.master_state`, {
+    await originalFetch(`${TABLE_URL}?key=eq.master_state`, {
       method: "PATCH",
       headers: {
         "apikey": ANON_KEY,
@@ -145,8 +152,6 @@ async function saveDbToCloud() {
 
 // Initialize Global Fetch Interception
 export function setupSupabaseFallback() {
-  const originalFetch = window.fetch || globalThis.fetch;
-
   // Detect whether we should force clientless fallback mode:
   // Active on non-local, non-studio preview domains (such as pages.dev, github.io)
   const isCloudflareBuild = 
