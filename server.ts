@@ -5,6 +5,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import multer from "multer";
+import postgres from "postgres";
 
 dotenv.config();
 
@@ -33,6 +34,67 @@ const upload = multer({ storage });
 
 // Database persistence
 const DB_FILE = path.join(process.cwd(), "db.json");
+
+// Supabase Direct PostgreSQL Connection
+let connectionString = process.env.SUPABASE_CONNECTION_STRING || "postgresql://postgres:Nusantara45*@db.wpoowpdcjahoxgffemhp.supabase.co:5432/postgres";
+
+// Safeguard against default config values containing placeholders
+if (connectionString.includes("[YOUR-PASSWORD]") || connectionString.includes("YOUR-PASSWORD")) {
+  const encPassword = encodeURIComponent("Nusantara45*");
+  connectionString = connectionString
+    .replace("[YOUR-PASSWORD]", encPassword)
+    .replace("YOUR-PASSWORD", encPassword);
+} else {
+  // If the connection string is the raw default one, make sure to encode special characters in the password
+  connectionString = connectionString.replace(":Nusantara45*@", `:${encodeURIComponent("Nusantara45*")}@`);
+}
+
+let sql: any = null;
+
+try {
+  // Safe logging of masked connection string
+  const maskedConn = connectionString.replace(/:[^@:]+@/, ":****@");
+  console.log(`Initializing Supabase Postgres client with URL: ${maskedConn}`);
+  sql = postgres(connectionString, {
+    ssl: "require",
+    connect_timeout: 10,
+  });
+} catch (error) {
+  console.error("Failed to initialize Supabase Postgres client:", error);
+}
+
+async function initSupabaseDb() {
+  if (!sql) return;
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS app_state (
+        key text PRIMARY KEY,
+        data jsonb,
+        updated_at timestamp with time zone DEFAULT current_timestamp
+      )
+    `;
+    console.log("Supabase: table 'app_state' verified or created.");
+
+    const rows = await sql`
+      SELECT data FROM app_state WHERE key = 'master_state'
+    `;
+
+    if (rows.length > 0) {
+      console.log("Supabase: Loaded state from Supabase database successfully!");
+      db = rows[0].data;
+      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    } else {
+      console.log("Supabase: No master_state found in Supabase. Creating one with current initial memory database...");
+      await sql`
+        INSERT INTO app_state (key, data, updated_at)
+        VALUES ('master_state', ${sql.json(db)}, ${new Date()})
+        ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at
+      `;
+    }
+  } catch (err) {
+    console.error("Supabase: Connection failed. Using local db.json file as fallback.", err);
+  }
+}
 
 function loadData() {
   if (fs.existsSync(DB_FILE)) {
@@ -172,6 +234,19 @@ if (!db.documentations || db.documentations.length === 0) {
 
 function saveData() {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  if (sql) {
+    sql`
+      INSERT INTO app_state (key, data, updated_at)
+      VALUES ('master_state', ${sql.json(db)}, ${new Date()})
+      ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at
+    `
+    .then(() => {
+      console.log("Supabase: Successfully synchronized data.");
+    })
+    .catch((err: any) => {
+      console.error("Supabase: Failed to sync data:", err);
+    });
+  }
 }
 
 // Serve uploaded files
@@ -464,6 +539,7 @@ app.post("/api/chat", async (req, res) => {
 
 // Vite Middleware
 async function startServer() {
+  await initSupabaseDb();
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);
