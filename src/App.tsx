@@ -65,9 +65,13 @@ export default function App() {
 
   useEffect(() => {
     // Auto login check or session
-    const savedUser = localStorage.getItem("user");
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
+    try {
+      const savedUser = localStorage.getItem("user");
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+      }
+    } catch (e) {
+      console.warn("Storage check failed: localStorage might be disabled.", e);
     }
 
     // Fetch branding
@@ -83,12 +87,20 @@ export default function App() {
 
   const handleLogin = (userData: User) => {
     setUser(userData);
-    localStorage.setItem("user", JSON.stringify(userData));
+    try {
+      localStorage.setItem("user", JSON.stringify(userData));
+    } catch (e) {
+      console.warn("Failed to save user session in localStorage", e);
+    }
   };
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem("user");
+    try {
+      localStorage.removeItem("user");
+    } catch (e) {
+      console.warn("Failed to clear user session from localStorage", e);
+    }
   };
 
   if (!user) {

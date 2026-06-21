@@ -36,6 +36,12 @@ async function ensureDbInitialized() {
           console.log("Firebase Fallback: Loaded state from Firestore cloud successfully.");
           return localDb;
         }
+      } else {
+        console.warn(`Firebase Fallback: Firestore REST returned status ${res.status}. Using fallback local database template.`);
+        try {
+          const errText = await res.text();
+          console.warn(`Firebase Fallback: Firestore REST error details:`, errText);
+        } catch (_) {}
       }
     } catch (err) {
       console.error("Firebase Fallback: Failed to fetch state from Firestore REST, initializing fallback template", err);
@@ -196,10 +202,10 @@ export function setupFirebaseFallback() {
         }
       }
 
-      await ensureDbInitialized();
-
       // Intercept Routes & Execute Client-Side Actions
       try {
+        await ensureDbInitialized();
+
         // Status Endpoints
         if (apiPath === "supabase-status" || apiPath === "firebase-status") {
           return new Response(JSON.stringify({ 
