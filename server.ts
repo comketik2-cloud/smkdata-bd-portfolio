@@ -50,6 +50,11 @@ if (connectionString.includes("[YOUR-PASSWORD]") || connectionString.includes("Y
 }
 
 let sql: any = null;
+let supabaseStatus = {
+  connected: false,
+  error: null as string | null,
+  host: "db.wpoowpdcjahoxgffemhp.supabase.co"
+};
 
 try {
   // Safe logging of masked connection string
@@ -59,13 +64,20 @@ try {
     ssl: "require",
     connect_timeout: 10,
   });
-} catch (error) {
+} catch (error: any) {
+  supabaseStatus.error = error?.message || String(error);
   console.error("Failed to initialize Supabase Postgres client:", error);
 }
 
 async function initSupabaseDb() {
-  if (!sql) return;
+  if (!sql) {
+    supabaseStatus.error = "Client not initialized";
+    return;
+  }
   try {
+    // Simple test query to confirm credentials are correct
+    await sql`SELECT 1`;
+    
     await sql`
       CREATE TABLE IF NOT EXISTS app_state (
         key text PRIMARY KEY,
@@ -91,7 +103,12 @@ async function initSupabaseDb() {
         ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at
       `;
     }
-  } catch (err) {
+    
+    supabaseStatus.connected = true;
+    supabaseStatus.error = null;
+  } catch (err: any) {
+    supabaseStatus.connected = false;
+    supabaseStatus.error = err?.message || String(err);
     console.error("Supabase: Connection failed. Using local db.json file as fallback.", err);
   }
 }
@@ -253,6 +270,10 @@ function saveData() {
 app.use("/uploads", express.static(UPLOADS_DIR));
 
 // API Routes
+app.get("/api/supabase-status", (req, res) => {
+  res.json(supabaseStatus);
+});
+
 app.get("/api/materials", (req, res) => {
   res.json(db.materials);
 });

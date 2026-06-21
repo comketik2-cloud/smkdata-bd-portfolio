@@ -17,7 +17,8 @@ import {
   Upload,
   Image as ImageIcon,
   Moon,
-  Sun
+  Sun,
+  Database
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -38,6 +39,28 @@ export default function Settings({ branding, onBrandingChange, darkMode, onToggl
   
   // Profile Picture
   const [profilePic, setProfilePic] = useState<string | null>(null);
+  
+  // Database Status State
+  const [dbStatus, setDbStatus] = useState<{ connected: boolean; error: string | null; host: string } | null>(null);
+  const [isRefreshingDb, setIsRefreshingDb] = useState(false);
+  
+  // Fetch DB Status
+  const fetchDbStatus = async () => {
+    setIsRefreshingDb(true);
+    try {
+      const res = await fetch("/api/supabase-status");
+      const data = await res.json();
+      setDbStatus(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsRefreshingDb(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDbStatus();
+  }, []);
   
   // Branding State
   const [appName, setAppName] = useState(branding.name);
@@ -117,6 +140,7 @@ export default function Settings({ branding, onBrandingChange, darkMode, onToggl
   const tabs = [
     { label: "Profil Akun", icon: UserIcon },
     { label: "Sistem Branding", icon: Layout },
+    { label: "Koneksi Supabase", icon: Database },
     { label: "Notifikasi", icon: Bell },
     { label: "Keamanan", icon: Shield },
     { label: "Tampilan", icon: Palette },
@@ -267,6 +291,78 @@ export default function Settings({ branding, onBrandingChange, darkMode, onToggl
                         />
                         <p className="text-[9px] font-bold text-slate-400 italic">Nama ini akan menjadi identitas utama pada dashboard.</p>
                     </div>
+                  </div>
+                )}
+
+                {activeTab === "Koneksi Supabase" && (
+                  <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-slate-800 font-bold text-xl uppercase tracking-tight flex items-center gap-2">
+                        <Database className="text-blue-600" size={22} /> Detail Koneksi Supabase PostgreSQL
+                      </h3>
+                      <button 
+                        onClick={fetchDbStatus} 
+                        disabled={isRefreshingDb}
+                        className="text-[10px] font-black uppercase tracking-widest text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 transition-all px-4 py-2 rounded-xl"
+                      >
+                        {isRefreshingDb ? "Menguji..." : "Uji Koneksi Ulang"}
+                      </button>
+                    </div>
+
+                    <div className="p-6 rounded-3xl border border-slate-100 bg-slate-50/50 space-y-4 shadow-inner">
+                      <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Status Koneksi</span>
+                        {dbStatus?.connected ? (
+                          <span className="text-[10px] font-bold bg-emerald-100 text-emerald-600 px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5 animate-pulse">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                            Terhubung (Sukses)
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold bg-rose-100 text-rose-600 px-3 py-1 rounded-full uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="h-2 w-2 rounded-full bg-rose-500"></span>
+                            Gagal Tersambung
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Project Supabase URL</span>
+                        <span className="text-xs text-slate-600 font-mono select-all">https://wpoowpdcjahoxgffemhp.supabase.co</span>
+                      </div>
+
+                      <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Direct Host</span>
+                        <span className="text-xs text-slate-600 font-mono select-all">{dbStatus?.host || "db.wpoowpdcjahoxgffemhp.supabase.co"}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between py-2">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Port Database</span>
+                        <span className="text-xs text-slate-600 font-mono">5432</span>
+                      </div>
+                    </div>
+
+                    {!dbStatus?.connected && dbStatus?.error && (
+                      <div className="p-6 bg-rose-50 border border-rose-100 rounded-3xl space-y-2">
+                        <h4 className="text-xs font-bold text-rose-600 uppercase tracking-wider">Detail Error Autentikasi:</h4>
+                        <pre className="text-xs text-rose-500 font-mono whitespace-pre-wrap bg-white/40 p-4 rounded-2xl border border-rose-100/50">
+                          {dbStatus.error}
+                        </pre>
+                        <p className="text-[10px] text-rose-400 font-bold uppercase tracking-wider mt-2">
+                          💡 Pastikan password database Anda memiliki format yang benar dan tidak diblokir oleh firewall.
+                        </p>
+                      </div>
+                    )}
+
+                    {dbStatus?.connected && (
+                      <div className="p-6 bg-emerald-50/50 border border-emerald-100 rounded-3xl space-y-2">
+                        <h4 className="text-xs font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-2">
+                          🎉 Penyimpanan Sinkron Berhasil!
+                        </h4>
+                        <p className="text-[11px] text-emerald-600 font-medium leading-relaxed">
+                          Aplikasi Anda sekarang aktif membackup dan menyinkronkan seluruh perubahan data (materi, profil, kurikulum, forum, dll.) secara langsung ke tabel <code className="font-mono bg-emerald-100/50 px-1 rounded">app_state</code> di database Supabase cloud. Jika Anda me-restart atau me-refresh server, progress tidak akan pernah hilang.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
