@@ -1,0 +1,8 @@
+{
+  "name": "BISNIS DIGITAL SMK DATA",
+  "description": "Platform Akademik Resmi Jurusan Bisnis Digital SMK Daruttaqwa (SMK DATA) untuk manajemen materi, jadwal, guru, dan evaluasi pembelajaran.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

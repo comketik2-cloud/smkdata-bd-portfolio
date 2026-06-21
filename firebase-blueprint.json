@@ -1,0 +1,123 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User account information and roles",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "guru", "siswa", "guest"] },
+        "department": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "name", "role"]
+    },
+    "Material": {
+      "title": "Learning Material",
+      "description": "Educational content for Digital Business",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["CP", "ATP", "Modul Ajar", "Video", "PPT", "PDF", "Quiz", "Tugas"] },
+        "content": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "category": { "type": "string" }
+      },
+      "required": ["title", "type", "authorId"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "School or department announcements",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "authorId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content", "authorId"]
+    },
+    "Teacher": {
+      "title": "Teacher Data",
+      "description": "Information about teachers in the department",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "nip": { "type": "string" },
+        "specialization": { "type": "string" },
+        "subjects": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "Student": {
+      "title": "Student Data",
+      "description": "Information about students in the department",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "nis": { "type": "string" },
+        "grade": { "type": "string" },
+        "major": { "type": "string" }
+      }
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Course or subject information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "Schedule": {
+      "title": "Class Schedule",
+      "description": "Weekly class schedules",
+      "type": "object",
+      "properties": {
+        "subjectId": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "day": { "type": "string" },
+        "timeStart": { "type": "string" },
+        "timeEnd": { "type": "string" },
+        "room": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Store user profiles"
+    },
+    "/materials/{materialId}": {
+      "schema": "Material",
+      "description": "Store learning materials"
+    },
+    "/announcements/{announcementId}": {
+      "schema": "Announcement",
+      "description": "Store global announcements"
+    },
+    "/teachers/{teacherId}": {
+      "schema": "Teacher",
+      "description": "Store detailed teacher data"
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Store detailed student data"
+    },
+    "/subjects/{subjectId}": {
+      "schema": "Subject",
+      "description": "Store subjects list"
+    },
+    "/schedules/{scheduleId}": {
+      "schema": "Schedule",
+      "description": "Store class schedules"
+    }
+  }
+}
