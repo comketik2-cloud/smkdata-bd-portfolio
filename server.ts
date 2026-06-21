@@ -457,7 +457,7 @@ app.post("/api/chat", async (req, res) => {
   try {
     const { message } = req.body;
     const prompt = `Anda adalah asisten AI untuk Jurusan Bisnis Digital di SMK Darut Taqwa. Bantu siswa dan guru dengan pertanyaan seputar Bisnis Digital. User: ${message}`;
-    const result = await ai.models.generateContent({ model: "gemini-3-flash-preview", contents: prompt });
+    const result = await ai.models.generateContent({ model: "gemini-3.5-flash", contents: prompt });
     res.json({ text: result.text || "Maaf, saya tidak dapat menjawab saat ini." });
   } catch (error) { res.status(500).json({ error: "AI Error" }); }
 });

@@ -84,6 +84,11 @@ export default function ProfilJurusanPage({ user }: ProfilJurusanProps) {
       if (res.ok) {
         const data = await res.json();
         setProfile(data);
+        setAboutForm({
+          about: data.about || "",
+          vision: data.vision || "",
+          missionText: data.mission ? data.mission.join("\n") : ""
+        });
         setIsEditingAbout(false);
       }
     } catch (err) {
@@ -452,7 +457,16 @@ export default function ProfilJurusanPage({ user }: ProfilJurusanProps) {
                   </div>
                   {isAdminOrGuru && !isEditingAbout && (
                     <button 
-                      onClick={() => setIsEditingAbout(true)} 
+                      onClick={() => {
+                        if (profile) {
+                          setAboutForm({
+                            about: profile.about || "",
+                            vision: profile.vision || "",
+                            missionText: profile.mission ? profile.mission.join("\n") : ""
+                          });
+                        }
+                        setIsEditingAbout(true);
+                      }} 
                       className="flex items-center gap-2 text-indigo-600 hover:bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all"
                     >
                       <Edit size={14} /> Edit Teks Profil
