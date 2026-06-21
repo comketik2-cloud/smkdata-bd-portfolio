@@ -5,7 +5,8 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import multer from "multer";
-import postgres from "postgres";
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, getDoc, setDoc, getDocs, collection, query, where } from "firebase/firestore";
 
 dotenv.config();
 
@@ -35,128 +36,92 @@ const upload = multer({ storage });
 // Database persistence
 const DB_FILE = path.join(process.cwd(), "db.json");
 
-// Supabase Direct PostgreSQL Connection
-let connectionString = process.env.SUPABASE_CONNECTION_STRING || "postgresql://postgres:Nusantara45*@db.wpoowpdcjahoxgffemhp.supabase.co:5432/postgres";
+// Firebase Client Configuration
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY || "AIzaSyAG2iqnBYdGYSCAyr1EnIvG_XVMet2kPXM",
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN || "portfolio-bd-500115.firebaseapp.com",
+  projectId: process.env.FIREBASE_PROJECT_ID || "portfolio-bd-500115",
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "portfolio-bd-500115.firebasestorage.app",
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "248973302444",
+  appId: process.env.FIREBASE_APP_ID || "1:248973302444:web:029ba39b63e59462695d09"
+};
 
-// Safeguard against default config values containing placeholders
-if (connectionString.includes("[YOUR-PASSWORD]") || connectionString.includes("YOUR-PASSWORD")) {
-  const encPassword = encodeURIComponent("Nusantara45*");
-  connectionString = connectionString
-    .replace("[YOUR-PASSWORD]", encPassword)
-    .replace("YOUR-PASSWORD", encPassword);
-} else {
-  // If the connection string is the raw default one, make sure to encode special characters in the password
-  connectionString = connectionString.replace(":Nusantara45*@", `:${encodeURIComponent("Nusantara45*")}@`);
-}
-
-let sql: any = null;
-let supabaseStatus = {
+let firestoreDb: any = null;
+let firebaseStatus = {
   connected: false,
   error: null as string | null,
-  host: "db.wpoowpdcjahoxgffemhp.supabase.co"
+  host: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId
 };
 
 try {
-  // Safe logging of masked connection string
-  const maskedConn = connectionString.replace(/:[^@:]+@/, ":****@");
-  console.log(`Initializing Supabase Postgres client with URL: ${maskedConn}`);
-  sql = postgres(connectionString, {
-    ssl: "require",
-    connect_timeout: 10,
-  });
+  console.log(`Initializing Firebase Firestore with Project ID: ${firebaseConfig.projectId}`);
+  const firebaseApp = initializeApp(firebaseConfig);
+  firestoreDb = getFirestore(firebaseApp);
 } catch (error: any) {
-  supabaseStatus.error = error?.message || String(error);
-  console.error("Failed to initialize Supabase Postgres client:", error);
+  firebaseStatus.error = error?.message || String(error);
+  console.error("Failed to initialize Firebase app:", error);
 }
 
-async function initSupabaseDb() {
-  if (!sql) {
-    supabaseStatus.error = "Client not initialized";
+async function initFirebaseDb() {
+  if (!firestoreDb) {
+    firebaseStatus.error = "Firebase Firestore client could not be initialized.";
     return;
   }
   try {
-    // Simple test query to confirm credentials are correct
-    await sql`SELECT 1`;
-    
-    await sql`
-      CREATE TABLE IF NOT EXISTS app_state (
-        key text PRIMARY KEY,
-        data jsonb,
-        updated_at timestamp with time zone DEFAULT current_timestamp
-      )
-    `;
-    console.log("Supabase: table 'app_state' verified or created.");
+    // Attempt to load 'master_state' from collection 'app_state'
+    const docRef = doc(firestoreDb, "app_state", "master_state");
+    const docSnap = await getDoc(docRef);
 
-    // Create the dedicated app_users table in Supabase for user storage
-    await sql`
-      CREATE TABLE IF NOT EXISTS app_users (
-        id text PRIMARY KEY,
-        email text UNIQUE,
-        password text,
-        name text,
-        role text,
-        created_at timestamp with time zone DEFAULT current_timestamp
-      )
-    `;
-    console.log("Supabase: table 'app_users' verified or created.");
-
-    // Create the dedicated users table in Supabase for user storage
-    await sql`
-      CREATE TABLE IF NOT EXISTS users (
-        id text PRIMARY KEY,
-        email text UNIQUE,
-        password text,
-        name text,
-        role text,
-        created_at timestamp with time zone DEFAULT current_timestamp
-      )
-    `;
-    console.log("Supabase: table 'users' verified or created.");
-
-    // Seed default roles if not yet existed
-    await sql`
-      INSERT INTO app_users (id, email, password, name, role)
-      VALUES 
-        ('usr-admin', 'admin@daruttaqwa.sch.id', 'admin123', 'Administrator BD', 'admin'),
-        ('usr-guru', 'guru@daruttaqwa.sch.id', 'guru123', 'Pak Ahmad, S.Pd.', 'guru'),
-        ('usr-siswa', 'siswa@daruttaqwa.sch.id', 'siswa123', 'Dwi Prasetyo', 'siswa')
-      ON CONFLICT (email) DO NOTHING
-    `;
-    console.log("Supabase: Default roles seeded in app_users.");
-
-    await sql`
-      INSERT INTO users (id, email, password, name, role)
-      VALUES 
-        ('usr-admin', 'admin@daruttaqwa.sch.id', 'admin123', 'Administrator BD', 'admin'),
-        ('usr-guru', 'guru@daruttaqwa.sch.id', 'guru123', 'Pak Ahmad, S.Pd.', 'guru'),
-        ('usr-siswa', 'siswa@daruttaqwa.sch.id', 'siswa123', 'Dwi Prasetyo', 'siswa')
-      ON CONFLICT (email) DO NOTHING
-    `;
-    console.log("Supabase: Default roles seeded in users.");
-
-    const rows = await sql`
-      SELECT data FROM app_state WHERE key = 'master_state'
-    `;
-
-    if (rows.length > 0) {
-      console.log("Supabase: Loaded state from Supabase database successfully!");
-      db = rows[0].data;
-      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    if (docSnap.exists()) {
+      console.log("Firebase Firestore: Loaded state from Firestore successfully!");
+      const fetched = docSnap.data();
+      if (fetched) {
+        if (fetched.dataString) {
+          db = JSON.parse(fetched.dataString);
+        } else if (fetched.data) {
+          db = fetched.data;
+        }
+        fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+      }
     } else {
-      console.log("Supabase: No master_state found in Supabase. Creating one with current initial memory database...");
-      await sql`
-        INSERT INTO app_state (key, data, updated_at)
-        VALUES ('master_state', ${sql.json(db)}, ${new Date()})
-        ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at
-      `;
+      console.log("Firebase Firestore: No master_state document found. Creating one with current initial memory database...");
+      await setDoc(docRef, {
+        data: db,
+        dataString: JSON.stringify(db),
+        updated_at: new Date().toISOString()
+      });
     }
-    
-    supabaseStatus.connected = true;
-    supabaseStatus.error = null;
+
+    // Seed default roles if users collection has no default records
+    try {
+      const defaultUsers = [
+        { id: "usr-admin", email: "admin@daruttaqwa.sch.id", password: "admin123", name: "Administrator BD", role: "admin" },
+        { id: "usr-guru", email: "guru@daruttaqwa.sch.id", password: "guru123", name: "Pak Ahmad, S.Pd.", role: "guru" },
+        { id: "usr-siswa", email: "siswa@daruttaqwa.sch.id", password: "siswa123", name: "Dwi Prasetyo", role: "siswa" }
+      ];
+
+      for (const du of defaultUsers) {
+        const uDocRef = doc(firestoreDb, "users", du.id);
+        const uSnap = await getDoc(uDocRef);
+        if (!uSnap.exists()) {
+          await setDoc(uDocRef, {
+            ...du,
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+      console.log("Firebase Firestore: Verified default system users in 'users' collection.");
+    } catch (err) {
+      console.error("Firebase Firestore seeding failed:", err);
+    }
+
+    firebaseStatus.connected = true;
+    firebaseStatus.error = null;
   } catch (err: any) {
-    supabaseStatus.connected = false;
-    supabaseStatus.error = err?.message || String(err);
-    console.error("Supabase: Connection failed. Using local db.json file as fallback.", err);
+    firebaseStatus.connected = false;
+    firebaseStatus.error = err?.message || String(err);
+    console.error("Firebase Firestore: Connection or load failed. Using local db.json file as fallback.", err);
   }
 }
 
@@ -307,17 +272,18 @@ if (!db.users) {
 
 function saveData() {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-  if (sql) {
-    sql`
-      INSERT INTO app_state (key, data, updated_at)
-      VALUES ('master_state', ${sql.json(db)}, ${new Date()})
-      ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at
-    `
+  if (firestoreDb) {
+    const docRef = doc(firestoreDb, "app_state", "master_state");
+    setDoc(docRef, {
+      data: db,
+      dataString: JSON.stringify(db),
+      updated_at: new Date().toISOString()
+    })
     .then(() => {
-      console.log("Supabase: Successfully synchronized data.");
+      console.log("Firebase Firestore: Successfully synchronized data.");
     })
     .catch((err: any) => {
-      console.error("Supabase: Failed to sync data:", err);
+      console.error("Firebase Firestore: Failed to sync data:", err);
     });
   }
 }
@@ -327,7 +293,11 @@ app.use("/uploads", express.static(UPLOADS_DIR));
 
 // API Routes
 app.get("/api/supabase-status", (req, res) => {
-  res.json(supabaseStatus);
+  res.json(firebaseStatus);
+});
+
+app.get("/api/firebase-status", (req, res) => {
+  res.json(firebaseStatus);
 });
 
 app.post("/api/auth/login", async (req, res) => {
@@ -336,38 +306,39 @@ app.post("/api/auth/login", async (req, res) => {
     return res.status(400).json({ error: "Email/NIP/NIS dan kata sandi wajib diisi" });
   }
 
-  // 1. Try Supabase direct queries
-  if (sql) {
+  // 1. Try Firebase Firestore query
+  if (firestoreDb) {
     try {
-      // Try 'users' table first
-      let rows = await sql`
-        SELECT * FROM users 
-        WHERE (email = ${email} OR id = ${email}) AND password = ${password}
-      `;
+      const usersRef = collection(firestoreDb, "users");
+      const q = query(usersRef, where("email", "==", email));
+      const querySnapshot = await getDocs(q);
       
-      // Fallback to 'app_users' if empty or failed
-      if (rows.length === 0) {
-        rows = await sql`
-          SELECT * FROM app_users 
-          WHERE (email = ${email} OR id = ${email}) AND password = ${password}
-        `;
+      let foundUserRecord: any = null;
+      if (!querySnapshot.empty) {
+        foundUserRecord = querySnapshot.docs[0].data();
+      } else {
+        // Fallback: Check if matching by doc ID directly
+        const userDocRef = doc(firestoreDb, "users", email);
+        const userSnap = await getDoc(userDocRef);
+        if (userSnap.exists()) {
+          foundUserRecord = userSnap.data();
+        }
       }
 
-      if (rows.length > 0) {
-        const found = rows[0];
-        if (!role || found.role === role) {
+      if (foundUserRecord && foundUserRecord.password === password) {
+        if (!role || foundUserRecord.role === role) {
           return res.json({
             user: {
-              id: found.id,
-              email: found.email,
-              name: found.name,
-              role: found.role
+              id: foundUserRecord.id,
+              email: foundUserRecord.email,
+              name: foundUserRecord.name,
+              role: foundUserRecord.role
             }
           });
         }
       }
     } catch (err) {
-      console.error("Supabase direct auth check failed, using local fallback list on server side:", err);
+      console.error("Firebase Firestore direct auth check failed, using local fallback list on server side:", err);
     }
   }
 
@@ -401,23 +372,21 @@ app.post("/api/auth/register", async (req, res) => {
 
   const id = `usr-${Math.random().toString(36).substring(2, 11)}`;
   
-  // Try inserting directly in SQL table
-  if (sql) {
+  // Try inserting directly into Firebase Firestore users collection
+  if (firestoreDb) {
     try {
-      await sql`
-        INSERT INTO app_users (id, email, password, name, role)
-        VALUES (${id}, ${email}, ${password}, ${name}, ${role})
-      `;
+      const userRef = doc(firestoreDb, "users", id);
+      await setDoc(userRef, {
+        id,
+        email,
+        password,
+        name,
+        role,
+        created_at: new Date().toISOString()
+      });
+      console.log(`Saved user record ${email} directly to Firestore.`);
     } catch (err) {
-      console.error("Supabase direct user register to app_users failed:", err);
-    }
-    try {
-      await sql`
-        INSERT INTO users (id, email, password, name, role)
-        VALUES (${id}, ${email}, ${password}, ${name}, ${role})
-      `;
-    } catch (err) {
-      console.error("Supabase direct user register to users failed:", err);
+      console.error("Firebase Firestore direct user register failed:", err);
     }
   }
 
@@ -722,7 +691,7 @@ app.post("/api/chat", async (req, res) => {
 
 // Vite Middleware
 async function startServer() {
-  await initSupabaseDb();
+  await initFirebaseDb();
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({ server: { middlewareMode: true }, appType: "spa" });
     app.use(vite.middlewares);

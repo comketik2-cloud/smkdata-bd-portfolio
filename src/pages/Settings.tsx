@@ -48,7 +48,7 @@ export default function Settings({ branding, onBrandingChange, darkMode, onToggl
   const fetchDbStatus = async () => {
     setIsRefreshingDb(true);
     try {
-      const res = await fetch("/api/supabase-status");
+      const res = await fetch("/api/firebase-status");
       const data = await res.json();
       setDbStatus(data);
     } catch (err) {
@@ -140,7 +140,7 @@ export default function Settings({ branding, onBrandingChange, darkMode, onToggl
   const tabs = [
     { label: "Profil Akun", icon: UserIcon },
     { label: "Sistem Branding", icon: Layout },
-    { label: "Koneksi Supabase", icon: Database },
+    { label: "Koneksi Firebase", icon: Database },
     { label: "Notifikasi", icon: Bell },
     { label: "Keamanan", icon: Shield },
     { label: "Tampilan", icon: Palette },
@@ -294,11 +294,11 @@ export default function Settings({ branding, onBrandingChange, darkMode, onToggl
                   </div>
                 )}
 
-                {activeTab === "Koneksi Supabase" && (
+                 {activeTab === "Koneksi Firebase" && (
                   <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
                     <div className="flex justify-between items-center">
                       <h3 className="text-slate-800 font-bold text-xl uppercase tracking-tight flex items-center gap-2">
-                        <Database className="text-blue-600" size={22} /> Detail Koneksi Supabase PostgreSQL
+                        <Database className="text-blue-600" size={22} /> Detail Koneksi Firebase Firestore
                       </h3>
                       <button 
                         onClick={fetchDbStatus} 
@@ -326,18 +326,18 @@ export default function Settings({ branding, onBrandingChange, darkMode, onToggl
                       </div>
 
                       <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Project Supabase URL</span>
-                        <span className="text-xs text-slate-600 font-mono select-all">https://wpoowpdcjahoxgffemhp.supabase.co</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Project Firebase ID</span>
+                        <span className="text-xs text-slate-600 font-mono select-all">portfolio-bd-500115</span>
                       </div>
 
                       <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Direct Host</span>
-                        <span className="text-xs text-slate-600 font-mono select-all">{dbStatus?.host || "db.wpoowpdcjahoxgffemhp.supabase.co"}</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Auth Domain / Host</span>
+                        <span className="text-xs text-slate-600 font-mono select-all">{dbStatus?.host || "portfolio-bd-500115.firebaseapp.com"}</span>
                       </div>
 
                       <div className="flex items-center justify-between py-2">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Port Database</span>
-                        <span className="text-xs text-slate-600 font-mono">5432</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Provider Server</span>
+                        <span className="text-xs text-slate-600 font-mono">Google Cloud Firestore</span>
                       </div>
                     </div>
 
@@ -348,7 +348,7 @@ export default function Settings({ branding, onBrandingChange, darkMode, onToggl
                           {dbStatus.error}
                         </pre>
                         <p className="text-[10px] text-rose-400 font-bold uppercase tracking-wider mt-2">
-                          💡 Pastikan password database Anda memiliki format yang benar dan tidak diblokir oleh firewall.
+                          💡 Pastikan kredensial Firebase Firestore Anda dikonfigurasi dengan benar di file lingkungan.
                         </p>
                       </div>
                     )}
@@ -359,7 +359,7 @@ export default function Settings({ branding, onBrandingChange, darkMode, onToggl
                           🎉 Penyimpanan Sinkron Berhasil!
                         </h4>
                         <p className="text-[11px] text-emerald-600 font-medium leading-relaxed">
-                          Aplikasi Anda sekarang aktif membackup dan menyinkronkan seluruh perubahan data (materi, profil, kurikulum, forum, dll.) secara langsung ke tabel <code className="font-mono bg-emerald-100/50 px-1 rounded">app_state</code> di database Supabase cloud. Jika Anda me-restart atau me-refresh server, progress tidak akan pernah hilang.
+                          Aplikasi Anda sekarang aktif membackup dan menyinkronkan seluruh perubahan data (materi, profil, kurikulum, forum, dll.) secara langsung ke dokumen <code className="font-mono bg-emerald-100/50 px-1 rounded">/app_state/master_state</code> di database Google Cloud Firestore. Jika Anda me-restart atau me-refresh server, progress tidak akan pernah hilang.
                         </p>
                       </div>
                     )}

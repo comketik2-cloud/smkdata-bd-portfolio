@@ -1,13 +1,14 @@
 /**
- * Supabase Client-Side Fallback Engine
- * Automatically redirects all backend '/api/*' calls directly to the Supabase Cloud REST APIs
+ * Firebase Client-Side Fallback Engine
+ * Automatically intercepts all backend '/api/*' calls and redirects them to the Firestore Cloud REST API
  * when deployed onto serverless static platforms (like Cloudflare Pages or Github Pages).
  * Supports the entire CRUD surface, file uploads (via persistent Base64), and AI-Chat queries.
  */
 
-const ANON_KEY = "sb_publishable_GmyX-s4is0pu2iKRv-TJIg_p7usw9J-";
-const REST_URL = "https://wpoowpdcjahoxgffemhp.supabase.co/rest/v1/app_state?key=eq.master_state";
-const TABLE_URL = "https://wpoowpdcjahoxgffemhp.supabase.co/rest/v1/app_state";
+const API_KEY = "AIzaSyAG2iqnBYdGYSCAyr1EnIvG_XVMet2kPXM";
+const PROJECT_ID = "portfolio-bd-500115";
+const FL_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/app_state/master_state?key=${API_KEY}`;
+const FL_PATCH_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/app_state/master_state?updateMask.fieldPaths=dataString&updateMask.fieldPaths=updated_at&key=${API_KEY}`;
 
 let localDb: any = null;
 let initPromise: Promise<any> | null = null;
@@ -19,29 +20,25 @@ const originalFetch = (
   fetch
 ).bind(typeof window !== "undefined" ? window : globalThis);
 
-// Initialize state from Supabase
+// Initialize state from Firestore REST API
 async function ensureDbInitialized() {
   if (localDb) return localDb;
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
     try {
-      const res = await originalFetch(REST_URL, {
-        headers: {
-          "apikey": ANON_KEY,
-          "Authorization": `Bearer ${ANON_KEY}`
-        }
-      });
+      const res = await originalFetch(FL_URL);
       if (res.ok) {
-        const data = await res.json();
-        if (data && data.length > 0) {
-          localDb = data[0].data;
-          console.log("Supabase Fallback: Loaded state from cloud successfully.");
+        const docData = await res.json();
+        const dataString = docData?.fields?.dataString?.stringValue;
+        if (dataString) {
+          localDb = JSON.parse(dataString);
+          console.log("Firebase Fallback: Loaded state from Firestore cloud successfully.");
           return localDb;
         }
       }
     } catch (err) {
-      console.error("Supabase Fallback: Failed to fetch state from Supabase REST, initializing fallback template", err);
+      console.error("Firebase Fallback: Failed to fetch state from Firestore REST, initializing fallback template", err);
     }
 
     // Default Fallback Template
@@ -102,24 +99,27 @@ async function ensureDbInitialized() {
       }
     };
 
-    // Save default mock back to Supabase to establish the first record
+    // Save default mock back to Firestore
     try {
-      await originalFetch(TABLE_URL, {
-        method: "POST",
+      await originalFetch(FL_PATCH_URL, {
+        method: "PATCH",
         headers: {
-          "apikey": ANON_KEY,
-          "Authorization": `Bearer ${ANON_KEY}`,
-          "Content-Type": "application/json",
-          "Prefer": "resolution=merge-duplicates"
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          key: "master_state",
-          data: localDb,
-          updated_at: new Date().toISOString()
+          fields: {
+            dataString: {
+              stringValue: JSON.stringify(localDb)
+            },
+            updated_at: {
+              stringValue: new Date().toISOString()
+            }
+          }
         })
       });
+      console.log("Firebase Fallback: Seeding initial database to Firestore completed.");
     } catch (saveErr) {
-      console.error("Supabase Fallback: Failed to write initial state:", saveErr);
+      console.error("Firebase Fallback: Failed to write initial state:", saveErr);
     }
 
     return localDb;
@@ -128,40 +128,51 @@ async function ensureDbInitialized() {
   return initPromise;
 }
 
-// Sync back to Supabase (debounced/background)
+// Sync back to Firestore (debounced/background)
 async function saveDbToCloud() {
   if (!localDb) return;
   try {
-    await originalFetch(`${TABLE_URL}?key=eq.master_state`, {
+    await originalFetch(FL_PATCH_URL, {
       method: "PATCH",
       headers: {
-        "apikey": ANON_KEY,
-        "Authorization": `Bearer ${ANON_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        data: localDb,
-        updated_at: new Date().toISOString()
+        fields: {
+          dataString: {
+            stringValue: JSON.stringify(localDb)
+          },
+          updated_at: {
+            stringValue: new Date().toISOString()
+          }
+        }
       })
     });
-    console.log("Supabase Fallback: Local database state synced to cloud.");
+    console.log("Firebase Fallback: Local database state synced to Firestore cloud.");
   } catch (err) {
-    console.error("Supabase Fallback: Sync to cloud failed:", err);
+    console.error("Firebase Fallback: Sync to Firestore cloud failed:", err);
   }
 }
 
 // Initialize Global Fetch Interception
-export function setupSupabaseFallback() {
+export function setupFirebaseFallback() {
   // Detect whether we should force clientless fallback mode:
   // Active on non-local, non-studio preview domains (such as pages.dev, github.io)
+  const isLocalOrDevelopment = 
+    window.location.hostname.includes("localhost") || 
+    window.location.hostname.includes("127.0.0.1") || 
+    window.location.hostname.includes(".run.app");
+
   const isCloudflareBuild = 
+    !isLocalOrDevelopment ||
     window.location.hostname.includes("pages.dev") || 
     window.location.hostname.includes("github.io") || 
     window.location.hostname.includes("vercel.app") ||
     window.location.hostname.includes("netlify.app") ||
+    window.location.search.includes("firebase=true") ||
     window.location.search.includes("supabase=true");
 
-  console.log(`Supabase Fallback: Environment Detection -> Is serverless static target: ${isCloudflareBuild}`);
+  console.log(`Firebase Fallback: Environment Detection -> Is serverless static target: ${isCloudflareBuild}`);
 
   const interceptedFetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     const urlStr = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
@@ -172,16 +183,16 @@ export function setupSupabaseFallback() {
       const method = init?.method?.toUpperCase() || "GET";
 
       if (!isCloudflareBuild) {
-        // Run standard fetch first. If it succeeds (which it does in our local dev-server), proceed.
-        // If it throws an error/404, we have fallback seamlessly taking charge.
         try {
           const res = await originalFetch(input, init);
-          if (res.status !== 404 && res.status !== 502) {
+          const contentType = res.headers.get("content-type") || "";
+          
+          if (res.status !== 404 && res.status !== 502 && !contentType.includes("text/html")) {
             return res;
           }
-          console.warn(`Supabase Fallback: Native API /api/${apiPath} returned ${res.status}. Diverting to Supabase Fallback.`);
+          console.warn(`Firebase Fallback: Native API /api/${apiPath} returned ${res.status}. Diverting to Firebase Fallback.`);
         } catch (fetchErr) {
-          console.warn(`Supabase Fallback: Native API /api/${apiPath} is unreachable. Diverting to Supabase Fallback.`, fetchErr);
+          console.warn(`Firebase Fallback: Native API /api/${apiPath} is unreachable. Diverting to Firebase Fallback.`, fetchErr);
         }
       }
 
@@ -189,9 +200,13 @@ export function setupSupabaseFallback() {
 
       // Intercept Routes & Execute Client-Side Actions
       try {
-        // Status Endpoint
-        if (apiPath === "supabase-status") {
-          return new Response(JSON.stringify({ connected: true, host: "db.wpoowpdcjahoxgffemhp.supabase.co" }), {
+        // Status Endpoints
+        if (apiPath === "supabase-status" || apiPath === "firebase-status") {
+          return new Response(JSON.stringify({ 
+            connected: true, 
+            host: `${PROJECT_ID}.firebaseapp.com`,
+            projectId: PROJECT_ID
+          }), {
             status: 200,
             headers: { "Content-Type": "application/json" }
           });
@@ -667,8 +682,6 @@ export function setupSupabaseFallback() {
         // AI Chat
         if (apiPath === "chat") {
           const body = JSON.parse(init?.body as string);
-          // Clever client-side responsive answer template that resolves locally to match Bisnis Digital context
-          // with excellent custom dynamic feedback if they deploy fully on static page:
           const textMsg = body?.message || "";
           
           let aiResponse = `Terima kasih atas pertanyaan Anda tentang Bisnis Digital di SMK Darut Taqwa Sengonagung. `;
@@ -711,7 +724,7 @@ export function setupSupabaseFallback() {
           }
         }
       } catch (err: any) {
-        console.error("Supabase Fallback: Endpoint handling failed:", err);
+        console.error("Firebase Fallback: Endpoint handling failed:", err);
         return new Response(JSON.stringify({ error: err?.message || String(err) }), {
           status: 500,
           headers: { "Content-Type": "application/json" }
@@ -736,11 +749,11 @@ export function setupSupabaseFallback() {
       enumerable: true
     });
   } catch (e) {
-    console.warn("Supabase Fallback: Failed to define fetch on window, falling back to direct assignment", e);
+    console.warn("Firebase Fallback: Failed to define fetch on window, falling back to direct assignment", e);
     try {
       (window as any).fetch = interceptedFetch;
     } catch (err2) {
-      console.error("Supabase Fallback: Failed to set fetch on window", err2);
+      console.error("Firebase Fallback: Failed to set fetch on window", err2);
     }
   }
 
@@ -752,6 +765,6 @@ export function setupSupabaseFallback() {
       enumerable: true
     });
   } catch (e) {
-    console.warn("Supabase Fallback: Failed to define fetch on globalThis", e);
+    console.warn("Firebase Fallback: Failed to define fetch on globalThis", e);
   }
 }
