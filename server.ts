@@ -536,6 +536,21 @@ app.post("/api/curriculums", (req, res) => {
   saveData();
   res.status(201).json(c);
 });
+app.put("/api/curriculums/:id", (req, res) => {
+  const idx = db.curriculums.findIndex((c: any) => c.id === req.params.id);
+  if (idx !== -1) {
+    db.curriculums[idx] = { ...db.curriculums[idx], ...req.body };
+    saveData();
+    res.json(db.curriculums[idx]);
+  } else {
+    res.status(404).send();
+  }
+});
+app.delete("/api/curriculums/:id", (req, res) => {
+  db.curriculums = db.curriculums.filter((c: any) => c.id !== req.params.id);
+  saveData();
+  res.status(204).send();
+});
 
 app.get("/api/forum", (req, res) => res.json(db.forumPosts));
 app.post("/api/forum", (req, res) => {

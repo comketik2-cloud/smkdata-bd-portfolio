@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { FileText, Plus, Search, Edit, Trash2, Loader2, CheckCircle, Clock, Eye, ChevronRight, X } from "lucide-react";
+import { FileText, Plus, Search, Edit, Trash2, Loader2, CheckCircle, Clock, Eye, ChevronRight, X, Upload, File, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { User } from "../types";
+import { User, Attachment } from "../types";
 
 interface CurriculumItem {
   id: string;
@@ -11,6 +11,7 @@ interface CurriculumItem {
   content: string;
   type: string;
   status: string;
+  attachments?: Attachment[];
 }
 
 export default function Curriculum({ user }: { user: User }) {
@@ -21,6 +22,8 @@ export default function Curriculum({ user }: { user: User }) {
   const [showDetailModal, setShowDetailModal] = useState<CurriculumItem | null>(null);
   const [editingItem, setEditingItem] = useState<CurriculumItem | null>(null);
   const [search, setSearch] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
 
   const [formData, setFormData] = useState({
     fase: "Fase E",
@@ -47,18 +50,103 @@ export default function Curriculum({ user }: { user: User }) {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    const form = new FormData();
+    Array.from(files).forEach((file) => {
+      form.append("files", file as Blob);
+    });
+
+    try {
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: form,
+      });
+      if (response.ok) {
+        const uploadedFiles = await response.json();
+        setAttachments([...attachments, ...uploadedFiles]);
+      }
+    } catch (error) {
+      console.error("Upload Error:", error);
+      alert("Gagal mengunggah file. Silakan coba lagi.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(attachments.filter((_, i) => i !== index));
+  };
+
+  const handleEditFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!editingItem) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    const form = new FormData();
+    Array.from(files).forEach((file) => {
+      form.append("files", file as Blob);
+    });
+
+    try {
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: form,
+      });
+      if (response.ok) {
+        const uploadedFiles = await response.json();
+        const currentAttachments = editingItem.attachments || [];
+        setEditingItem({
+          ...editingItem,
+          attachments: [...currentAttachments, ...uploadedFiles]
+        });
+      }
+    } catch (error) {
+      console.error("Upload Error:", error);
+      alert("Gagal mengunggah file. Silakan coba lagi.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeEditAttachment = (index: number) => {
+    if (!editingItem) return;
+    const currentAttachments = editingItem.attachments || [];
+    setEditingItem({
+      ...editingItem,
+      attachments: currentAttachments.filter((_, i) => i !== index)
+    });
+  };
+
+  const openAttachment = (file: Attachment) => {
+    if (file.url) {
+      window.open(file.url, "_blank");
+    } else {
+      const mockUrl = `https://example.com/mock-file.${file.type.toLowerCase()}`;
+      window.open(mockUrl, "_blank");
+    }
+  };
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const res = await fetch("/api/curriculums", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          attachments
+        })
       });
       if (res.ok) {
         fetchCurriculums();
         setShowAddModal(false);
         setFormData({ fase: "Fase E", grade: "Kelas X", title: "", content: "", type: "CP", status: "Aktif" });
+        setAttachments([]);
       }
     } catch (e) { console.error(e); }
   };
@@ -168,12 +256,30 @@ export default function Curriculum({ user }: { user: User }) {
                 )}
               </div>
               <div className="pt-6 border-t border-slate-100 flex items-center justify-between relative z-10">
-                <span className={`text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest flex items-center gap-2 shadow-sm ${
-                  item.status === "Aktif" ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' : 'text-amber-600 bg-amber-50 border border-amber-100'
-                }`}>
-                  {item.status === "Aktif" ? <CheckCircle size={14} /> : <Clock size={14} />}
-                  {item.status}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-black px-4 py-2 rounded-xl uppercase tracking-widest flex items-center gap-2 shadow-sm ${
+                    item.status === "Aktif" ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' : 'text-amber-600 bg-amber-50 border border-amber-100'
+                  }`}>
+                    {item.status === "Aktif" ? <CheckCircle size={14} /> : <Clock size={14} />}
+                    {item.status}
+                  </span>
+                  
+                  {item.attachments && item.attachments.length > 0 && (
+                    <div className="flex -space-x-2">
+                      {item.attachments.slice(0, 3).map((_, idx) => (
+                        <div key={idx} className="w-6 h-6 rounded-full bg-slate-100 border border-white flex items-center justify-center shadow-sm" title={_.name}>
+                          <File size={10} className="text-indigo-500" />
+                        </div>
+                      ))}
+                      {item.attachments.length > 3 && (
+                        <div className="w-6 h-6 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[8px] font-bold text-slate-600 shadow-sm">
+                          +{item.attachments.length - 3}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                
                 <button className="text-[10px] font-black text-slate-400 hover:text-indigo-600 transition-all uppercase tracking-[0.2em] flex items-center gap-2 group/btn">
                   Buka Dokumen <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
                 </button>
@@ -233,6 +339,78 @@ export default function Curriculum({ user }: { user: User }) {
                       </select>
                     </div>
                   </div>
+
+                  {/* File Upload Section */}
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">
+                      Lampiran & Berkas Pendukung (Opsional)
+                    </label>
+                    <label 
+                      htmlFor={showAddModal ? "curriculum-file-upload-add" : "curriculum-file-upload-edit"} 
+                      className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50 cursor-pointer hover:bg-indigo-50/50 hover:border-indigo-400/30 transition-all group ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                    >
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        {isUploading ? (
+                          <Loader2 className="w-8 h-8 mb-3 text-indigo-500 animate-spin" />
+                        ) : (
+                          <Upload className="w-8 h-8 mb-3 text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                        )}
+                        <p className="mb-1 text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-indigo-600">
+                          {isUploading ? 'Sedang mengunggah...' : 'Klik atau seret file'}
+                        </p>
+                        <p className="text-[9px] font-bold text-slate-300 uppercase">PDF, PPT, DOC, atau ZIP (Maks 10MB)</p>
+                      </div>
+                      <input 
+                        id={showAddModal ? "curriculum-file-upload-add" : "curriculum-file-upload-edit"} 
+                        type="file" 
+                        multiple 
+                        className="hidden" 
+                        onChange={showAddModal ? handleFileUpload : handleEditFileUpload} 
+                        disabled={isUploading} 
+                      />
+                    </label>
+                    
+                    {showAddModal && attachments.length > 0 && (
+                      <div className="grid grid-cols-2 gap-3 max-h-32 overflow-y-auto scrollbar-hide">
+                        {attachments.map((file, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-2xl shadow-sm group">
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <File size={14} className="text-indigo-500 min-w-[14px]" />
+                              <p className="text-[10px] font-bold text-slate-600 truncate">{file.name}</p>
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => removeAttachment(idx)}
+                              className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-300 hover:text-rose-500 transition-all"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {showEditModal && editingItem?.attachments && editingItem.attachments.length > 0 && (
+                      <div className="grid grid-cols-2 gap-3 max-h-32 overflow-y-auto scrollbar-hide">
+                        {editingItem.attachments.map((file, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-2xl shadow-sm group">
+                            <div className="flex items-center gap-3 overflow-hidden">
+                              <File size={14} className="text-indigo-500 min-w-[14px]" />
+                              <p className="text-[10px] font-bold text-slate-600 truncate">{file.name}</p>
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => removeEditAttachment(idx)}
+                              className="p-1.5 hover:bg-rose-50 rounded-lg text-slate-300 hover:text-rose-500 transition-all"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="pt-6 flex gap-4">
                     <button type="button" onClick={() => showAddModal ? setShowAddModal(false) : setShowEditModal(false)} className="flex-1 py-4 font-black text-[10px] uppercase tracking-[0.2em] text-slate-400 hover:text-slate-600 transition-all border border-slate-200 rounded-2xl">Batal</button>
                     <button type="submit" className="flex-1 py-4 font-black text-[10px] uppercase tracking-[0.2em] brand-gradient text-white rounded-2xl shadow-xl shadow-indigo-100 hover:opacity-90 transition-all active:scale-95">Simpan Dokumen</button>
@@ -267,10 +445,41 @@ export default function Curriculum({ user }: { user: User }) {
                   </button>
                </div>
                
-               <div className="flex-1 overflow-y-auto pr-8 custom-scrollbar">
+               <div className="flex-1 overflow-y-auto pr-8 custom-scrollbar space-y-8">
                   <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-12 text-slate-700 leading-relaxed text-base whitespace-pre-wrap font-medium shadow-inner">
                      {showDetailModal.content || "Konten dokumen masih dalam tahap penyusunan oleh tim kurikulum."}
                   </div>
+
+                  {showDetailModal.attachments && showDetailModal.attachments.length > 0 && (
+                    <div className="space-y-4">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Lampiran & Dokumen Pendukung</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {showDetailModal.attachments.map((file, idx) => (
+                          <div 
+                            key={idx} 
+                            onClick={() => openAttachment(file)}
+                            className="flex items-center justify-between bg-white border border-slate-200 p-4 rounded-2xl hover:border-indigo-400 hover:shadow-lg transition-all group cursor-pointer"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                                file.type.toLowerCase().includes('pdf') ? 'bg-rose-50 text-rose-500' :
+                                file.type.toLowerCase().includes('doc') ? 'bg-blue-50 text-blue-500' :
+                                file.type.toLowerCase().includes('ppt') ? 'bg-amber-50 text-amber-500' :
+                                'bg-indigo-50 text-indigo-500'
+                              }`}>
+                                <File size={20} />
+                              </div>
+                              <div className="overflow-hidden">
+                                <p className="text-xs font-bold text-slate-700 line-clamp-1">{file.name}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{file.type} • {file.size}</p>
+                              </div>
+                            </div>
+                            <ExternalLink size={16} className="text-slate-300 group-hover:text-indigo-500 transition-colors flex-shrink-0" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                </div>
 
                <div className="mt-10 pt-8 border-t border-slate-100 flex justify-end">
