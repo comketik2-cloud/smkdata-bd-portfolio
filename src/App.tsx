@@ -18,6 +18,7 @@ import Login from "./pages/Login";
 import DocumentationPage from "./pages/Documentation";
 import ProfilJurusanPage from "./pages/ProfilJurusan";
 import UkkJurusanPage from "./pages/UkkJurusan";
+import GoogleDrive from "./pages/GoogleDrive";
 import Sidebar from "./components/Sidebar";
 import Navbar from "./components/Navbar";
 import Chatbot from "./components/Chatbot";
@@ -145,6 +146,7 @@ export default function App() {
                 <Route path="/students" element={<Students user={user} />} />
                 <Route path="/schedule" element={<Schedule user={user} />} />
                 <Route path="/curriculum" element={<Curriculum user={user} />} />
+                <Route path="/google-drive" element={<GoogleDrive />} />
                 <Route path="/forum" element={<Forum user={user} />} />
                 <Route path="/documentation" element={<DocumentationPage user={user} branding={branding} />} />
                 <Route path="/profile-jurusan" element={<ProfilJurusanPage user={user} />} />

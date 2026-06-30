@@ -14,7 +14,8 @@ import {
   FileText,
   Camera,
   Sparkles,
-  GraduationCap
+  GraduationCap,
+  Cloud
 } from "lucide-react";
 import { UserRole } from "../types";
 import { motion } from "motion/react";
@@ -34,6 +35,7 @@ export default function Sidebar({ isOpen, setIsOpen, onLogout, role, branding }:
     { title: "Dashboard", icon: Home, path: "/", roles: ["admin", "guru", "siswa", "guest"] },
     { title: "Profil Jurusan", icon: Sparkles, path: "/profile-jurusan", roles: ["admin", "guru", "siswa", "guest"] },
     { title: "Materi Belajar", icon: BookOpen, path: "/materials", roles: ["admin", "guru", "siswa", "guest"] },
+    { title: "Google Drive", icon: Cloud, path: "/google-drive", roles: ["admin", "guru", "siswa"] },
     { title: "CP & ATP", icon: FileText, path: "/curriculum", roles: ["admin", "guru", "siswa"] },
     { title: "Dokumentasi Jurusan", icon: Camera, path: "/documentation", roles: ["admin", "guru", "siswa", "guest"] },
     { title: "UKK Jurusan", icon: GraduationCap, path: "/ukk-jurusan", roles: ["admin", "guru", "siswa", "guest"] },
