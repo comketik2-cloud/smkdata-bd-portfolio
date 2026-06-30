@@ -25,6 +25,7 @@ export interface Material {
   content: string;
   fileUrl?: string;
   attachments?: Attachment[];
+  externalLink?: string;
 }
 
 export interface Announcement {
@@ -79,6 +80,7 @@ export interface ProfileDocument {
   description: string;
   fileUrl: string;
   fileName: string;
+  externalLink?: string;
 }
 
 export interface ProfileJurusan {

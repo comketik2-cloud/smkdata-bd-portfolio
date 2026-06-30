@@ -41,6 +41,7 @@ export default function Materials({ user, branding }: MaterialsProps) {
   const [newType, setNewType] = useState("Modul Ajar");
   const [newCategory, setNewCategory] = useState("Umum");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [newExternalLink, setNewExternalLink] = useState("");
 
   useEffect(() => {
     fetchMaterials();
@@ -102,6 +103,7 @@ export default function Materials({ user, branding }: MaterialsProps) {
       category: newCategory,
       author: user.name,
       attachments: attachments,
+      externalLink: newExternalLink,
     };
 
     try {
@@ -116,6 +118,7 @@ export default function Materials({ user, branding }: MaterialsProps) {
         setNewTitle("");
         setNewContent("");
         setAttachments([]);
+        setNewExternalLink("");
       }
     } catch (error) {
       console.error("Add Error:", error);
@@ -135,7 +138,8 @@ export default function Materials({ user, branding }: MaterialsProps) {
            content: editingMaterial.content,
            type: editingMaterial.type,
            category: editingMaterial.category,
-           attachments: editingMaterial.attachments
+           attachments: editingMaterial.attachments,
+           externalLink: editingMaterial.externalLink
         })
       });
       if (response.ok) {
@@ -392,6 +396,19 @@ export default function Materials({ user, branding }: MaterialsProps) {
                     </select>
                   </div>
                 </div>
+
+                {/* Link Eksternal */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Link Eksternal Pendukung (Opsional)</label>
+                  <input 
+                    type="url" 
+                    value={newExternalLink}
+                    onChange={(e) => setNewExternalLink(e.target.value)}
+                    placeholder="Contoh: https://drive.google.com/..."
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 placeholder:text-slate-300 rounded-2xl p-5 outline-none focus:border-blue-600 transition-all font-bold text-sm shadow-inner"
+                  />
+                </div>
+
                 <div className="space-y-4">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">
                     Lampiran & Berkas Pendukung
@@ -524,6 +541,19 @@ export default function Materials({ user, branding }: MaterialsProps) {
                     </select>
                   </div>
                 </div>
+
+                {/* Link Eksternal */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Link Eksternal Pendukung (Opsional)</label>
+                  <input 
+                    type="url" 
+                    value={editingMaterial.externalLink || ""}
+                    onChange={(e) => setEditingMaterial({...editingMaterial, externalLink: e.target.value})}
+                    placeholder="Contoh: https://drive.google.com/..."
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 placeholder:text-slate-300 rounded-2xl p-5 outline-none focus:border-blue-600 transition-all font-bold text-sm shadow-inner"
+                  />
+                </div>
+
                 <div className="pt-6 flex gap-4">
                   <button 
                     type="button" 
@@ -646,6 +676,29 @@ export default function Materials({ user, branding }: MaterialsProps) {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {showDetailModal.externalLink && (
+                    <div className="space-y-4">
+                      <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest pl-1">Link Eksternal Pendukung</h4>
+                      <a 
+                        href={showDetailModal.externalLink} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-950 p-5 rounded-2xl hover:border-indigo-400 hover:bg-indigo-50 hover:shadow-lg transition-all group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-500 text-white flex items-center justify-center">
+                            <ExternalLink size={20} />
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Buka Link Eksternal</p>
+                            <p className="text-[9px] font-medium text-slate-500 max-w-md truncate">{showDetailModal.externalLink}</p>
+                          </div>
+                        </div>
+                        <ExternalLink size={16} className="text-indigo-400 group-hover:translate-x-1 transition-transform" />
+                      </a>
                     </div>
                   )}
                </div>

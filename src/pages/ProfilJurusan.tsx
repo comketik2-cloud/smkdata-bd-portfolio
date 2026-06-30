@@ -13,7 +13,8 @@ import {
   School, 
   Compass,
   FileDown,
-  Sparkles
+  Sparkles,
+  ExternalLink
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -36,7 +37,7 @@ export default function ProfilJurusanPage({ user }: ProfilJurusanProps) {
   const [showEditFacility, setShowEditFacility] = useState(false);
 
   const [showAddDoc, setShowAddDoc] = useState(false);
-  const [docForm, setDocForm] = useState({ title: "", description: "", fileUrl: "", fileName: "", uploading: false });
+  const [docForm, setDocForm] = useState({ title: "", description: "", fileUrl: "", fileName: "", externalLink: "", uploading: false });
   const [editingDoc, setEditingDoc] = useState<any | null>(null);
   const [showEditDoc, setShowEditDoc] = useState(false);
 
@@ -270,7 +271,8 @@ export default function ProfilJurusanPage({ user }: ProfilJurusanProps) {
       title: docForm.title,
       description: docForm.description,
       fileUrl: docForm.fileUrl,
-      fileName: docForm.fileName
+      fileName: docForm.fileName,
+      externalLink: docForm.externalLink
     };
 
     const updated = {
@@ -288,7 +290,7 @@ export default function ProfilJurusanPage({ user }: ProfilJurusanProps) {
         const data = await res.json();
         setProfile(data);
         setShowAddDoc(false);
-        setDocForm({ title: "", description: "", fileUrl: "", fileName: "", uploading: false });
+        setDocForm({ title: "", description: "", fileUrl: "", fileName: "", externalLink: "", uploading: false });
       }
     } catch (err) {
       console.error(err);
@@ -692,20 +694,33 @@ export default function ProfilJurusanPage({ user }: ProfilJurusanProps) {
                       )}
                     </div>
                     <p className="text-[11px] text-slate-500 font-semibold leading-relaxed mt-1.5">{doc.description}</p>
-                    <div className="mt-4 flex items-center justify-between">
-                      <span className="text-[9px] text-slate-400 font-bold bg-slate-100 px-2 py-1 rounded-md">{doc.fileName || "Unduhan.pdf"}</span>
-                      {doc.fileUrl ? (
-                        <a 
-                          href={doc.fileUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-                        >
-                          <Download size={12} /> Unduh Berkas
-                        </a>
-                      ) : (
-                        <span className="text-[10px] text-slate-300 font-black uppercase">Tautan Kosong</span>
-                      )}
+                    <div className="mt-4 flex flex-wrap gap-2 items-center justify-between">
+                      <span className="text-[9px] text-slate-400 font-bold bg-slate-100 px-2 py-1 rounded-md">{doc.fileName || "Berkas"}</span>
+                      <div className="flex gap-2">
+                        {doc.fileUrl && (
+                          <a 
+                            href={doc.fileUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                          >
+                            <Download size={12} /> Unduh Berkas
+                          </a>
+                        )}
+                        {doc.externalLink && (
+                          <a 
+                            href={doc.externalLink} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-600 px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                          >
+                            <ExternalLink size={12} /> Buka Link
+                          </a>
+                        )}
+                        {!doc.fileUrl && !doc.externalLink && (
+                          <span className="text-[10px] text-slate-300 font-black uppercase">Tautan Kosong</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -810,14 +825,23 @@ export default function ProfilJurusanPage({ user }: ProfilJurusanProps) {
                     />
                   </div>
                   <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Link Eksternal Pendukung (Opsional)</label>
+                    <input 
+                      type="url" 
+                      value={docForm.externalLink || ""} 
+                      onChange={(e) => setDocForm({ ...docForm, externalLink: e.target.value })} 
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl p-4 outline-none focus:border-indigo-500/50 transition-all font-bold text-sm shadow-sm" 
+                      placeholder="Contoh: https://drive.google.com/..." 
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Pilih File untuk Di-upload (PDF, Docx dsb)</label>
                     <div className="flex gap-4">
                        <input 
                          value={docForm.fileUrl} 
                          onChange={(e) => setDocForm({ ...docForm, fileUrl: e.target.value })} 
                          className="flex-1 bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl p-4 outline-none focus:border-indigo-500/50 transition-all text-xs font-semibold" 
-                         placeholder="URL dokumen atau ketik manual..." 
-                         required
+                         placeholder="URL dokumen atau ketik manual (Opsional)..." 
                        />
                        <label className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-5 py-4 rounded-2xl cursor-pointer transition-all border border-indigo-200 flex items-center justify-center gap-2">
                           {docForm.uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
@@ -923,13 +947,23 @@ export default function ProfilJurusanPage({ user }: ProfilJurusanProps) {
                     />
                   </div>
                   <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Link Eksternal Pendukung (Opsional)</label>
+                    <input 
+                      type="url" 
+                      value={editingDoc.externalLink || ""} 
+                      onChange={(e) => setEditingDoc({ ...editingDoc, externalLink: e.target.value })} 
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl p-4 outline-none focus:border-indigo-500/50 transition-all font-bold text-sm shadow-sm" 
+                      placeholder="Contoh: https://drive.google.com/..." 
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Pilih File Baru untuk Di-upload (PDF, Docx dsb)</label>
                     <div className="flex gap-4">
                        <input 
                          value={editingDoc.fileUrl} 
                          onChange={(e) => setEditingDoc({ ...editingDoc, fileUrl: e.target.value })} 
                          className="flex-1 bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl p-4 outline-none focus:border-indigo-500/50 transition-all text-xs font-semibold" 
-                         required
+                         placeholder="URL dokumen atau ketik manual (Opsional)..." 
                        />
                        <label className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-5 py-4 rounded-2xl cursor-pointer transition-all border border-indigo-200 flex items-center justify-center gap-2">
                           {editingDoc.uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}

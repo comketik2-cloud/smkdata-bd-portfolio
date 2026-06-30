@@ -26,29 +26,8 @@ async function ensureDbInitialized() {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    try {
-      const res = await originalFetch(FL_URL);
-      if (res.ok) {
-        const docData = await res.json();
-        const dataString = docData?.fields?.dataString?.stringValue;
-        if (dataString) {
-          localDb = JSON.parse(dataString);
-          console.log("Firebase Fallback: Loaded state from Firestore cloud successfully.");
-          return localDb;
-        }
-      } else {
-        console.warn(`Firebase Fallback: Firestore REST returned status ${res.status}. Using fallback local database template.`);
-        try {
-          const errText = await res.text();
-          console.warn(`Firebase Fallback: Firestore REST error details:`, errText);
-        } catch (_) {}
-      }
-    } catch (err) {
-      console.error("Firebase Fallback: Failed to fetch state from Firestore REST, initializing fallback template", err);
-    }
-
-    // Default Fallback Template
-    localDb = {
+    let loadedFromCloud = false;
+    let fallbackTemplate = {
       branding: { name: "BISNIS DIGITAL", logo: null },
       materials: [
         {
@@ -105,28 +84,70 @@ async function ensureDbInitialized() {
       }
     };
 
-    // Save default mock back to Firestore
     try {
-      await originalFetch(FL_PATCH_URL, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          fields: {
-            dataString: {
-              stringValue: JSON.stringify(localDb)
+      const res = await originalFetch(FL_URL);
+      if (res.ok) {
+        const docData = await res.json();
+        const dataString = docData?.fields?.dataString?.stringValue;
+        if (dataString) {
+          localDb = JSON.parse(dataString);
+          console.log("Firebase Fallback: Loaded state from Firestore cloud successfully.");
+          try {
+            localStorage.setItem("smkdata_db_cache", dataString);
+          } catch (_) {}
+          loadedFromCloud = true;
+          return localDb;
+        }
+      } else if (res.status === 404) {
+        console.warn("Firebase Fallback: Firestore document 404 not found. Creating brand new master state...");
+        localDb = fallbackTemplate;
+        try {
+          await originalFetch(FL_PATCH_URL, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json"
             },
-            updated_at: {
-              stringValue: new Date().toISOString()
-            }
-          }
-        })
-      });
-      console.log("Firebase Fallback: Seeding initial database to Firestore completed.");
-    } catch (saveErr) {
-      console.error("Firebase Fallback: Failed to write initial state:", saveErr);
+            body: JSON.stringify({
+              fields: {
+                dataString: {
+                  stringValue: JSON.stringify(localDb)
+                },
+                updated_at: {
+                  stringValue: new Date().toISOString()
+                }
+              }
+            })
+          });
+          console.log("Firebase Fallback: Seeding initial database completed.");
+        } catch (saveErr) {
+          console.error("Firebase Fallback: Failed to write initial state:", saveErr);
+        }
+        return localDb;
+      } else {
+        console.warn(`Firebase Fallback: Firestore REST returned status ${res.status}. We WILL NOT overwrite the cloud data. Using cache fallbacks.`);
+        try {
+          const errText = await res.text();
+          console.warn(`Firebase Fallback: Firestore REST error details:`, errText);
+        } catch (_) {}
+      }
+    } catch (err) {
+      console.error("Firebase Fallback: Failed to fetch state from Firestore REST (network/CORS/exception). We WILL NOT overwrite the cloud data.", err);
     }
+
+    // Try to load from localStorage cache as a recovery fallback to avoid blank screen/data loss
+    try {
+      const cached = localStorage.getItem("smkdata_db_cache");
+      if (cached) {
+        localDb = JSON.parse(cached);
+        console.log("Firebase Fallback: Recovered state from localStorage cache successfully!");
+        return localDb;
+      }
+    } catch (_) {}
+
+    // If no cache exists, use the fallback template locally, but mark it as transient-only so we never save it to the cloud and ruin existing data!
+    console.warn("Firebase Fallback: No localStorage cache found. Running with local-only in-memory database to prevent overwrites.");
+    localDb = fallbackTemplate;
+    localDb.__transientOnly = true;
 
     return localDb;
   })();
@@ -137,6 +158,17 @@ async function ensureDbInitialized() {
 // Sync back to Firestore (debounced/background)
 async function saveDbToCloud() {
   if (!localDb) return;
+  
+  if (localDb.__transientOnly) {
+    console.warn("Firebase Fallback: Sync blocked because the database is in transient-only fallback mode (to protect existing cloud data).");
+    return;
+  }
+
+  // Always save to localStorage cache as well for offline/load resilience
+  try {
+    localStorage.setItem("smkdata_db_cache", JSON.stringify(localDb));
+  } catch (_) {}
+
   try {
     await originalFetch(FL_PATCH_URL, {
       method: "PATCH",

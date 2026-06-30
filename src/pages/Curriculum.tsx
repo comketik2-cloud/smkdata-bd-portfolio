@@ -12,6 +12,7 @@ interface CurriculumItem {
   type: string;
   status: string;
   attachments?: Attachment[];
+  externalLink?: string;
 }
 
 export default function Curriculum({ user }: { user: User }) {
@@ -31,7 +32,8 @@ export default function Curriculum({ user }: { user: User }) {
     title: "",
     content: "",
     type: "CP",
-    status: "Aktif"
+    status: "Aktif",
+    externalLink: ""
   });
 
   useEffect(() => {
@@ -145,7 +147,7 @@ export default function Curriculum({ user }: { user: User }) {
       if (res.ok) {
         fetchCurriculums();
         setShowAddModal(false);
-        setFormData({ fase: "Fase E", grade: "Kelas X", title: "", content: "", type: "CP", status: "Aktif" });
+        setFormData({ fase: "Fase E", grade: "Kelas X", title: "", content: "", type: "CP", status: "Aktif", externalLink: "" });
         setAttachments([]);
       }
     } catch (e) { console.error(e); }
@@ -340,6 +342,20 @@ export default function Curriculum({ user }: { user: User }) {
                     </div>
                   </div>
 
+                  {/* External Link Section */}
+                  <div className="space-y-3 pt-4 border-t border-slate-100">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">
+                      Link Eksternal Pendukung (Opsional, selain Unggah Berkas)
+                    </label>
+                    <input 
+                      type="url" 
+                      value={showAddModal ? formData.externalLink : (editingItem?.externalLink || "")} 
+                      onChange={(e) => showAddModal ? setFormData({...formData, externalLink: e.target.value}) : setEditingItem({...editingItem!, externalLink: e.target.value})} 
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-2xl p-5 outline-none focus:border-indigo-500/50 transition-all text-sm font-bold shadow-sm" 
+                      placeholder="Contoh: https://drive.google.com/..." 
+                    />
+                  </div>
+
                   {/* File Upload Section */}
                   <div className="space-y-4 pt-4 border-t border-slate-100">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">
@@ -478,6 +494,29 @@ export default function Curriculum({ user }: { user: User }) {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {showDetailModal.externalLink && (
+                    <div className="space-y-4">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Link Eksternal Pendukung</h4>
+                      <a 
+                        href={showDetailModal.externalLink} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between bg-indigo-50/50 border border-indigo-100 p-5 rounded-2xl hover:border-indigo-400 hover:bg-indigo-50 hover:shadow-lg transition-all group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-500 text-white flex items-center justify-center">
+                            <ExternalLink size={20} />
+                          </div>
+                          <div className="overflow-hidden">
+                            <p className="text-xs font-bold text-slate-800">Buka Link Eksternal</p>
+                            <p className="text-[9px] font-medium text-slate-500 max-w-md truncate">{showDetailModal.externalLink}</p>
+                          </div>
+                        </div>
+                        <ChevronRight size={18} className="text-indigo-400 group-hover:translate-x-1 transition-transform" />
+                      </a>
                     </div>
                   )}
                </div>
