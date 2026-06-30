@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Image as ImageIcon, Plus, Trash2, Loader2, Camera, Upload, X, Calendar, User, Eye, Search, AlertCircle } from "lucide-react";
+import { Image as ImageIcon, Plus, Trash2, Loader2, Camera, Upload, X, Calendar, User, Eye, Search, AlertCircle, Edit } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { User as UserType, Documentation } from "../types";
 
@@ -24,6 +24,115 @@ export default function DocumentationPage({ user, branding }: DocumentationPageP
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit states
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingDoc, setEditingDoc] = useState<Documentation | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    origin: "",
+    description: "",
+    photoUrl: ""
+  });
+  const [editPreviewUrl, setEditPreviewUrl] = useState<string | null>(null);
+  const [editUploading, setEditUploading] = useState(false);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleEditFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const objectUrl = URL.createObjectURL(file);
+    setEditPreviewUrl(objectUrl);
+
+    setEditUploading(true);
+    const uploadData = new FormData();
+    uploadData.append("files", file);
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: uploadData
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data[0] && data[0].url) {
+          setEditFormData(prev => ({ ...prev, photoUrl: data[0].url }));
+        }
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+    } finally {
+      setEditUploading(false);
+    }
+  };
+
+  const handleEditDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleEditDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Hanya file gambar yang diizinkan!");
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setEditPreviewUrl(objectUrl);
+
+    setEditUploading(true);
+    const uploadData = new FormData();
+    uploadData.append("files", file);
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: uploadData
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data[0] && data[0].url) {
+          setEditFormData(prev => ({ ...prev, photoUrl: data[0].url }));
+        }
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+    } finally {
+      setEditUploading(false);
+    }
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDoc) return;
+    if (!editFormData.photoUrl) {
+      alert("Harap unggah foto kegiatan terlebih dahulu!");
+      return;
+    }
+    if (!editFormData.origin.trim() || !editFormData.description.trim()) {
+      alert("Harap lengkapi asal foto dan deskripsi kegiatan!");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/documentations/${editingDoc.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editFormData)
+      });
+
+      if (res.ok) {
+        fetchDocs();
+        setShowEditModal(false);
+        setEditingDoc(null);
+      }
+    } catch (err) {
+      console.error("Submit edit error:", err);
+    }
+  };
 
   // Auto-fill sender if user is logged in
   useEffect(() => {
@@ -183,6 +292,7 @@ export default function DocumentationPage({ user, branding }: DocumentationPageP
 
   const canUpload = user.role === "admin" || user.role === "guru" || user.role === "siswa";
   const canDelete = user.role === "admin" || user.role === "guru";
+  const canEdit = user.role === "admin" || user.role === "guru";
 
   return (
     <div className="space-y-8">
@@ -267,32 +377,57 @@ export default function DocumentationPage({ user, branding }: DocumentationPageP
               onClick={() => setSelectedDoc(doc)}
               className="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-md hover:shadow-xl dark:shadow-none hover:-translate-y-1 transition-all cursor-pointer flex flex-col relative"
             >
-              {/* Image box */}
-              <div className="aspect-[4/3] bg-slate-100 overflow-hidden relative">
+              {/* Image box with smart blurred bg so photo is fully visible & beautiful */}
+              <div className="aspect-[4/3] bg-slate-950 dark:bg-slate-950 overflow-hidden relative flex items-center justify-center">
+                <div 
+                  className="absolute inset-0 bg-cover bg-center blur-lg opacity-30 scale-110 pointer-events-none"
+                  style={{ backgroundImage: `url(${doc.photoUrl})` }}
+                />
                 <img
                   src={doc.photoUrl}
                   alt={doc.description}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  className="max-w-full max-h-full object-contain relative z-10 group-hover:scale-105 transition-transform duration-500"
                   referrerPolicy="no-referrer"
                   loading="lazy"
                 />
                 
                 {/* Overlay details */}
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4 z-20">
                   <div className="text-white w-full flex items-center justify-between">
                     <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 bg-indigo-600/90 backdrop-blur-md px-2.5 py-1 rounded-full">
                       <Eye size={12} /> Detail Foto
                     </span>
                     
-                    {canDelete && (
-                      <button
-                        onClick={(e) => handleDelete(doc.id, e)}
-                        className="p-2 bg-rose-600 hover:bg-rose-500 rounded-xl text-white transition-colors hover:scale-110 shadow-lg"
-                        title="Hapus Momen"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
+                    <div className="flex gap-2">
+                      {canEdit && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingDoc(doc);
+                            setEditFormData({
+                              origin: doc.origin,
+                              description: doc.description,
+                              photoUrl: doc.photoUrl
+                            });
+                            setEditPreviewUrl(doc.photoUrl);
+                            setShowEditModal(true);
+                          }}
+                          className="p-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white transition-colors hover:scale-110 shadow-lg"
+                          title="Edit Momen"
+                        >
+                          <Edit size={14} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={(e) => handleDelete(doc.id, e)}
+                          className="p-2 bg-rose-600 hover:bg-rose-500 rounded-xl text-white transition-colors hover:scale-110 shadow-lg"
+                          title="Hapus Momen"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -400,19 +535,37 @@ export default function DocumentationPage({ user, branding }: DocumentationPageP
                   </div>
                 </div>
 
-                <div className="pt-6 mt-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  {canDelete ? (
-                    <button
-                      onClick={(e) => {
-                        handleDelete(selectedDoc.id, e);
-                      }}
-                      className="px-5 py-3 rounded-xl border border-rose-200 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5"
-                    >
-                      <Trash2 size={13} /> Hapus Arsip
-                    </button>
-                  ) : (
-                    <div />
-                  )}
+                <div className="pt-6 mt-6 border-t border-slate-100 dark:border-slate-800 flex items-center gap-3 justify-between flex-wrap">
+                  <div className="flex gap-2">
+                    {canEdit && (
+                      <button
+                        onClick={() => {
+                          setEditingDoc(selectedDoc);
+                          setEditFormData({
+                            origin: selectedDoc.origin,
+                            description: selectedDoc.description,
+                            photoUrl: selectedDoc.photoUrl
+                          });
+                          setEditPreviewUrl(selectedDoc.photoUrl);
+                          setShowEditModal(true);
+                          setSelectedDoc(null);
+                        }}
+                        className="px-4 py-3 rounded-xl border border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5"
+                      >
+                        <Edit size={13} /> Edit
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={(e) => {
+                          handleDelete(selectedDoc.id, e);
+                        }}
+                        className="px-4 py-3 rounded-xl border border-rose-200 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5"
+                      >
+                        <Trash2 size={13} /> Hapus
+                      </button>
+                    )}
+                  </div>
 
                   <button
                     onClick={() => setSelectedDoc(null)}
@@ -567,6 +720,161 @@ export default function DocumentationPage({ user, branding }: DocumentationPageP
                       </span>
                     ) : (
                       "UNGGAH SEKARANG"
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Modal */}
+      <AnimatePresence>
+        {showEditModal && editingDoc && (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 md:p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800 dark:text-white uppercase tracking-tight">
+                    Edit Momen Kegiatan
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                    Ubah rincian foto atau deskripsi dokumentasi kegiatan
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingDoc(null);
+                  }}
+                  className="p-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-400 rounded-full transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditSubmit} className="p-6 md:p-8 space-y-6 overflow-y-auto flex-1">
+                {/* Upload drag drop panel */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    GANTI FOTO (OPSIONAL)
+                  </label>
+                  
+                  <div
+                    onDragOver={handleEditDragOver}
+                    onDrop={handleEditDrop}
+                    onClick={() => editFileInputRef.current?.click()}
+                    className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                      editPreviewUrl 
+                        ? 'border-indigo-400 bg-indigo-50/20 dark:bg-indigo-950/10' 
+                        : 'border-slate-300 hover:border-indigo-500 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100/50 dark:hover:bg-slate-800/80'
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      ref={editFileInputRef}
+                      onChange={handleEditFileChange}
+                      accept="image/*"
+                      className="hidden"
+                    />
+
+                    {editUploading ? (
+                      <div className="py-8 flex flex-col items-center justify-center gap-3">
+                        <Loader2 size={32} className="animate-spin text-indigo-500" />
+                        <span className="text-[10px] font-black uppercase text-indigo-500 tracking-wider">
+                          Mentransfer gambar baru ke server...
+                        </span>
+                      </div>
+                    ) : editPreviewUrl ? (
+                      <div className="relative group max-h-[180px] overflow-hidden rounded-xl flex items-center justify-center">
+                        <img 
+                          src={editPreviewUrl} 
+                          alt="Pratinjau" 
+                          className="max-h-[160px] object-contain rounded-lg shadow-md"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
+                          <span className="text-white text-xs font-bold uppercase tracking-widest bg-slate-950/80 px-3 py-1.5 rounded-full flex items-center gap-1">
+                            <Upload size={12} /> Ganti File
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-6 flex flex-col items-center justify-center gap-2">
+                        <div className="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/30 text-indigo-500 dark:text-indigo-400 flex items-center justify-center">
+                          <Upload size={20} />
+                        </div>
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          Klik untuk cari foto atau Drop file di sini
+                        </p>
+                        <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest">
+                          Maksimal 10MB (JPG, JPEG, PNG, WEBP, GIF)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Input Fields */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      Asal Foto / Pembuat Momen *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Contoh: Siswa Kelas XI BD 1, Tim Kewirausahaan, atau nama guru"
+                      value={editFormData.origin}
+                      onChange={(e) => setEditFormData({ ...editFormData, origin: e.target.value })}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-2xl p-4 outline-none focus:border-indigo-500 text-sm font-bold shadow-inner"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                       Deskripsi Kegiatan & Detail Momen *
+                    </label>
+                    <textarea
+                      required
+                      rows={4}
+                      placeholder="Contoh: Praktek merancang strategi promosi menggunakan iklan berbayar (Meta Ads) untuk produk kuliner lokal dalam mata pelajaran perencanaan bisnis digital..."
+                      value={editFormData.description}
+                      onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-2xl p-4 outline-none focus:border-indigo-500 text-sm font-bold shadow-inner resize-none leading-relaxed"
+                    />
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setEditingDoc(null);
+                    }}
+                    className="flex-1 py-4 font-black text-[10px] uppercase tracking-[0.2em] text-slate-400 hover:text-slate-600 transition-all border border-slate-200 rounded-2xl hover:bg-slate-50 cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editUploading || !editFormData.photoUrl}
+                    className="flex-1 py-4 font-black text-[10px] uppercase tracking-[0.2em] text-white brand-gradient rounded-2xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:scale-102 active:scale-98 transition-all cursor-pointer border-b-4 border-yellow-400 text-center"
+                  >
+                    {editUploading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 size={14} className="animate-spin" /> MENYIMPAN...
+                      </span>
+                    ) : (
+                      "SIMPAN PERUBAHAN"
                     )}
                   </button>
                 </div>

@@ -626,6 +626,25 @@ app.delete("/api/documentations/:id", (req, res) => {
   res.status(204).send();
 });
 
+app.put("/api/documentations/:id", (req, res) => {
+  if (!db.documentations) {
+    db.documentations = [];
+  }
+  const idx = db.documentations.findIndex((doc: any) => doc.id === req.params.id);
+  if (idx !== -1) {
+    db.documentations[idx] = { 
+      ...db.documentations[idx], 
+      photoUrl: req.body.photoUrl,
+      origin: req.body.origin,
+      description: req.body.description
+    };
+    saveData();
+    res.json(db.documentations[idx]);
+  } else {
+    res.status(404).send();
+  }
+});
+
 // UKK Jurusan Endpoints
 app.get("/api/ukk-projects", (req, res) => {
   if (!db.ukkProjects) {
